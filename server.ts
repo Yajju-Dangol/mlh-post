@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Body parsers with large limit for base64 images
 app.use(express.json({ limit: '50mb' }));
@@ -393,7 +393,11 @@ app.post('/api/generate', async (req, res) => {
 
 // Vite middleware and static serving
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    !process.argv.some((arg) => arg.includes('server.ts'));
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -408,7 +412,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT} (${isProduction ? 'Production' : 'Development'})`);
   });
 }
 

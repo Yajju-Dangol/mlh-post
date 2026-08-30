@@ -1,0 +1,7 @@
+{
+  "name": "Property Post Maker",
+  "description": "A live property post maker for real estate marketing with real-time preview and 1:1 PNG export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

@@ -1,23 +1,54 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
 import {
-  supabase,
   AI_GATEWAY_URL,
   AI_GATEWAY_API_KEY,
+  MODEL_NAME,
   compilePromptPayload,
 } from './_shared';
 
 export const config = {
-  maxDuration: 120, // Allow up to 120s for image generation
+  maxDuration: 60, // Standard max duration supported on Vercel Hobby plan
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS Support
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { propertyType, location, price, highlights, ratio, referenceImage, branding } = req.body;
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        body = {};
+      }
+    }
+    body = body || {};
+
+    const {
+      propertyType = '',
+      location = '',
+      price = '',
+      highlights = '',
+      ratio = '16:9',
+      referenceImage = null,
+      branding = undefined,
+    } = body;
 
     if (!propertyType || !location) {
       return res.status(400).json({
@@ -25,29 +56,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const compiledPayload = compilePromptPayload(req.body);
+    const compiledPayload = compilePromptPayload(body);
 
     const apiKey =
       process.env.AI_GATEWAY_API_KEY ||
       process.env.MODEL_API_KEY ||
-      process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY ||
+      AI_GATEWAY_API_KEY;
+
+    const gatewayUrl =
+      process.env.AI_GATEWAY_URL || AI_GATEWAY_URL || 'https://ai-gateway.vercel.sh/v1';
+
+    const model =
+      process.env.MODEL_NAME ||
+      process.env.MUSE_MODEL ||
+      compiledPayload.model ||
+      'bytedance/seedream-5.0-pro';
 
     let generatedImageUrl = '';
     let apiStatus = 'fallback_mock';
     let errorMessage = '';
 
-    if (apiKey) {
+    if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
       try {
-        console.log(`[API] Dispatching generation to ${AI_GATEWAY_URL} for model ${compiledPayload.model}...`);
+        console.log(`[API] Calling ${gatewayUrl} with model ${model}...`);
         const openai = new OpenAI({
-          baseURL: AI_GATEWAY_URL,
+          baseURL: gatewayUrl,
           apiKey: apiKey,
-          timeout: 120000,
+          timeout: 50000,
           maxRetries: 0,
         });
 
         const result = await openai.images.generate({
-          model: compiledPayload.model,
+          model: model,
           prompt: compiledPayload.prompt,
           size: compiledPayload.size as any,
           response_format: 'b64_json',
@@ -63,12 +104,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           apiStatus = 'gateway_success';
         }
       } catch (gatewayErr: any) {
-        console.error('Gateway error:', gatewayErr?.message || gatewayErr);
-        errorMessage = gatewayErr?.message || 'Gateway call failed';
+        console.error('Gateway error (falling back to architectural library):', gatewayErr?.message || gatewayErr);
+        errorMessage = gatewayErr?.message || 'Gateway generation attempt failed';
       }
     }
 
-    // Fallback images
+    // High quality curated architectural fallback library
     const architecturalRenders = [
       'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1600&q=85',
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1600&q=85',
@@ -88,11 +129,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({
       success: true,
       imageUrl: generatedImageUrl,
-      model: compiledPayload.model,
+      model: model,
       apiStatus,
       errorMessage: errorMessage || null,
       compiledPayload: {
-        model: compiledPayload.model,
+        model: model,
         size: compiledPayload.size,
         aspectRatio: compiledPayload.aspectRatio,
         compiledPrompt: compiledPayload.prompt,
@@ -101,8 +142,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
   } catch (error: any) {
-    console.error('API /api/generate error:', error);
-    res.status(500).json({
+    console.error('API /api/generate unexpected error:', error);
+    return res.status(500).json({
       error: error.message || 'Internal generation server error',
     });
   }

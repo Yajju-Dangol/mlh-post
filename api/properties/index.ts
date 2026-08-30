@@ -2,6 +2,18 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase, uploadImageToSupabaseStorage } from '../_shared';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   // GET /api/properties — Fetch all properties from Supabase
   if (req.method === 'GET') {
     try {
@@ -25,7 +37,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // POST /api/properties — Save a property visual
   if (req.method === 'POST') {
     try {
-      const item = req.body;
+      let item = req.body;
+      if (typeof item === 'string') {
+        try {
+          item = JSON.parse(item);
+        } catch (e) {
+          item = {};
+        }
+      }
+      item = item || {};
+
       if (!item || !item.id || !item.imageUrl) {
         return res.status(400).json({ error: 'Missing required property item data' });
       }

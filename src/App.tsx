@@ -51,9 +51,12 @@ export default function App() {
   useEffect(() => {
     // 1. Fetch server config
     fetch('/api/config')
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
-        if (data.status === 'ok') {
+        if (data && data.status === 'ok') {
           setSystemConfig(data);
         }
       })
@@ -70,29 +73,35 @@ export default function App() {
           setGenerations(supabaseItems);
         } else {
           // Fallback to server route if direct client fetch returned empty
-          const res = await fetch('/api/properties');
-          const data = await res.json();
-          if (data.items && data.items.length > 0) {
-            const formatted: GenerationItem[] = data.items.map((row: any) => ({
-              id: row.id,
-              number: row.number || `#${row.id.slice(-4)}`,
-              title: row.title || row.property_type || 'Property Visual',
-              propertyType: row.property_type || row.propertyType,
-              location: row.location,
-              price: row.price,
-              highlights: row.highlights,
-              prompt: row.prompt || '',
-              imageUrl: row.image_url || row.imageUrl,
-              engine: row.engine || 'bytedance/seedream-5.0-pro',
-              ratio: row.ratio || '16:9',
-              branding: row.branding || undefined,
-              apiStatus: row.api_status || 'saved',
-              createdAt: row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Recent',
-              tags: [
-                { label: 'SAVED IN SUPABASE', bg: '#ecfdf5', text: '#059669' },
-              ],
-            }));
-            setGenerations(formatted);
+          try {
+            const res = await fetch('/api/properties');
+            if (res.ok) {
+              const data = await res.json();
+              if (data.items && data.items.length > 0) {
+                const formatted: GenerationItem[] = data.items.map((row: any) => ({
+                  id: row.id,
+                  number: row.number || `#${row.id.slice(-4)}`,
+                  title: row.title || row.property_type || 'Property Visual',
+                  propertyType: row.property_type || row.propertyType,
+                  location: row.location,
+                  price: row.price,
+                  highlights: row.highlights,
+                  prompt: row.prompt || '',
+                  imageUrl: row.image_url || row.imageUrl,
+                  engine: row.engine || 'bytedance/seedream-5.0-pro',
+                  ratio: row.ratio || '16:9',
+                  branding: row.branding || undefined,
+                  apiStatus: row.api_status || 'saved',
+                  createdAt: row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Recent',
+                  tags: [
+                    { label: 'SAVED IN SUPABASE', bg: '#ecfdf5', text: '#059669' },
+                  ],
+                }));
+                setGenerations(formatted);
+              }
+            }
+          } catch (serverFetchErr) {
+            console.warn('Server fallback properties fetch failed:', serverFetchErr);
           }
         }
       } catch (e) {
@@ -173,10 +182,17 @@ export default function App() {
         }),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch (jsonParseErr) {
+        if (!response.ok) {
+          throw new Error(`Server returned status ${response.status}. Please check Vercel environment variables.`);
+        }
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate visual');
+        throw new Error(data.error || `Server error (${response.status})`);
       }
 
       const nextNum = 1001 + generations.length;

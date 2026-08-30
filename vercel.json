@@ -1,9 +1,10 @@
 {
+  "framework": "vite",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
-  "framework": null,
   "rewrites": [
     { "source": "/api/properties/:id", "destination": "/api/properties/[id]" },
-    { "source": "/api/(.*)", "destination": "/api/$1" }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/.*).*)", "destination": "/index.html" }
   ]
 }

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase, uploadImageToSupabaseStorage } from './_shared';
+import { supabase, uploadImageToSupabaseStorage } from '../_shared';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/properties — Fetch all properties from Supabase

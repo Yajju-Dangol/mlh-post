@@ -1,0 +1,25 @@
+[build]
+  command = "vite build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Direct /api/properties/:id to properties function with id parameter
+[[redirects]]
+  from = "/api/properties/:id"
+  to = "/.netlify/functions/properties?id=:id"
+  status = 200
+
+# Route all other /api/* calls to Netlify functions
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback routing for client
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
